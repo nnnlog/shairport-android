@@ -45,6 +45,7 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
         }
         statusCategory = findPreference(PREF_STATUS) as PreferenceCategory
         refreshModel()
+        refreshLowLatency()
 
         requestNotificationPermission()
         if (preferences.getBoolean(Prefs.RECEIVER_ENABLED, true)) ReceiverService.start(this)
@@ -71,6 +72,7 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
 
     private fun refreshStatus() {
         if (isFinishing || isDestroyed) return
+        refreshLowLatency() // an audio tap turns it off
         fun summary(key: String, text: String) { statusCategory.findPreference(key).summary = text }
         summary(
             "status_shairport",
@@ -122,6 +124,10 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
             Prefs.AIRPLAY_2 -> {
                 refreshModel()
                 refreshStatus()
+            }
+            Prefs.LOW_LATENCY -> {
+                (findPreference(key) as SwitchPreference).isChecked = sharedPreferences.getBoolean(key, false)
+                refreshLowLatency()
             }
             Prefs.MODEL -> refreshModel()
             // The tile, the notification's "Stop" or adb may change it while this screen is open.
@@ -176,6 +182,22 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
                 homePod -> getString(R.string.model_homepod_summary)
                 else -> "%s"
             }
+        }
+    }
+
+    /** AirPlay 2 only, and off while an app taps the audio (ReceiverService): say which applies. */
+    private fun refreshLowLatency() {
+        val airplay2 = preferences.getBoolean(Prefs.AIRPLAY_2, false)
+        findPreference(Prefs.LOW_LATENCY).apply {
+            isEnabled = airplay2
+            summary = getString(
+                when {
+                    !airplay2 -> R.string.low_latency_airplay2_summary
+                    AudioTapService.tap != null && preferences.getBoolean(Prefs.LOW_LATENCY, false) ->
+                        R.string.low_latency_tap_summary
+                    else -> R.string.low_latency_summary
+                },
+            )
         }
     }
 

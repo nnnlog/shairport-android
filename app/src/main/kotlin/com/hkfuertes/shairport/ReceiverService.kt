@@ -379,6 +379,8 @@ class ReceiverService : Service() {
           audio_backend_buffer_desired_length_in_seconds = ${tap?.lead ?: AudioTapService.MIN_LEAD};
           // The tap gets Shairport's rate; an app that can't use 48 kHz asks for 44.1 kHz only.
           airplay_2_44100_only_mode = ${quote(if (tap?.only44100 == true) "on" else "off")};
+          // The low-latency stream plays through a low-latency AAudio stream (patch 0012).
+          airplay_2_low_latency_mode = ${quote(if (Prefs.lowLatency(preferences, airplay2, tap != null)) "on" else "off")};
         };
         metadata = {
           enabled = "yes";

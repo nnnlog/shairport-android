@@ -58,6 +58,10 @@ class SettingsReceiver : BroadcastReceiver() {
             "album" to EngineStatus.album,
             "address" to EngineStatus.address,
             "mode" to if (!EngineStatus.advertising) null else if (EngineStatus.airplay2) "airplay2" else "classic",
+            // the low-latency stream as configured: off with classic AirPlay or an audio tap
+            "low_latency_active" to Prefs.lowLatency(
+                preferences, preferences.getBoolean(Prefs.AIRPLAY_2, false), AudioTapService.tap != null,
+            ).toString(),
         ).forEach { (key, value) -> if (value != null) query.appendQueryParameter(key, value) }
         Prefs.defaults(context).forEach { (key, default) ->
             query.appendQueryParameter(key, (preferences.all[key] ?: default).toString())

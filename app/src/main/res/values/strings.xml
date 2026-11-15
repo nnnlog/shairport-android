@@ -43,6 +43,10 @@
     <string name="model_homepod_summary">HomePods can\'t be added to the Home app, which only takes real HomePods; choose Generic for Home.</string>
     <string name="playback_mode_title">Playback mode</string>
     <string name="playback_mode_summary">Channel mapping applied by Shairport Sync.</string>
+    <string name="low_latency_title">Low latency</string>
+    <string name="low_latency_summary">Offer AirPlay 2\'s low-latency stream, which a Mac uses for its system audio: about 70–300 ms of delay instead of about 2 s. Lossy (AAC-ELD). Other senders and apps play as before.</string>
+    <string name="low_latency_airplay2_summary">AirPlay 2 only.</string>
+    <string name="low_latency_tap_summary">Off while an app taps the audio: the tap needs it well ahead of time.</string>
     <string name="link_stream_volume_title">Link Android music volume</string>
     <string name="link_stream_volume_summary">AirPlay volume also sets Android\'s music volume. With AirPlay 2, changing it here changes the sender\'s too.</string>
     <string name="now_playing_title">Now playing notification</string>

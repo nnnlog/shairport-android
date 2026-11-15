@@ -31,6 +31,10 @@
             android:key="model"
             android:summary="%s"
             android:title="@string/model_title" />
+        <SwitchPreference
+            android:key="low_latency"
+            android:summary="@string/low_latency_summary"
+            android:title="@string/low_latency_title" />
         <ListPreference
             android:entries="@array/playback_mode_entries"
             android:entryValues="@array/playback_mode_values"

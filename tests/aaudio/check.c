@@ -87,6 +87,39 @@ int main(void) {
   long deep = play_seconds(2.0);
   assert(deep > 44100 * 3 / 4 && deep < 44100 * 3 / 2);
 
+  // AirPlay 2's low-latency stream (patch 0012): a short buffer, opened and started ahead of its
+  // audio by prepare(), and still running after a flush; stop() closes it.
+  audio_aaudio.stop();
+  assert(stream == NULL);
+  config.low_latency_output_active = 1;
+  config.low_latency_audio_backend_buffer_desired_length = 0.030;
+  int32_t ll_format = audio_aaudio.get_configuration(2, 48000, SPS_FORMAT_S16_LE);
+  assert(audio_aaudio.configure(ll_format, NULL) == 0);
+  assert(stream_low_latency == 1);
+  audio_aaudio.stop(); // the stream before: its format is remembered
+  assert(stream == NULL && running == 0);
+  assert(audio_aaudio.prepare() == 0);
+  assert(stream != NULL && running == 1 && stream_low_latency == 1);
+  usleep(300000); // the SETUP-to-audio wait: it plays nothing meanwhile
+  assert(audio_aaudio.configure(ll_format, NULL) == 0);
+  assert(running == 1); // configure keeps the stream prepare() started
+  static int16_t ll_silence[2 * 480];
+  for (int i = 0; i < 100; i++)
+    assert(audio_aaudio.play(ll_silence, 480, 0, 0, 0) == 0);
+  long ll = -1;
+  assert(audio_aaudio.delay(&ll) == 0);
+  printf("low-latency delay after 1 s: %ld frames (%.1f ms)\n", ll, ll * 1000.0 / 48000);
+  assert(ll > 48000 * 0.030 * 3 / 4 && ll < 48000 * 0.060); // the 30 ms buffer and the device's
+  audio_aaudio.flush();
+  assert(stream != NULL && running == 1); // ready for the resume
+  for (int i = 0; i < 50; i++)
+    assert(audio_aaudio.play(ll_silence, 480, 0, 0, 0) == 0);
+  assert(audio_aaudio.delay(&ll) == 0);
+  assert(ll > 48000 * 0.030 * 3 / 4 && ll < 48000 * 0.060);
+  audio_aaudio.stop();
+  assert(stream == NULL && running == 0);
+  config.low_latency_output_active = 0;
+
   audio_aaudio.deinit();
   puts("PASS aaudio backend");
   return 0;

@@ -1,0 +1,255 @@
+diff --git a/audio_aaudio.c b/audio_aaudio.c
+index e4687a2..9c2cc75 100644
+--- a/audio_aaudio.c
++++ b/audio_aaudio.c
+@@ -43,6 +43,7 @@ typedef struct AAudioStreamBuilderStruct AAudioStreamBuilder;
+ #define AAUDIO_FORMAT_PCM_I16 1
+ #define AAUDIO_USAGE_MEDIA 1
+ #define AAUDIO_CONTENT_TYPE_MUSIC 2
++#define AAUDIO_PERFORMANCE_MODE_LOW_LATENCY 12
+ #define NANOS_PER_SECOND 1000000000LL
+ 
+ // clang-format off
+@@ -70,6 +71,14 @@ AAUDIO_FUNCTIONS(DECLARE)
+ // API 28+: without them the stream is still valid, just not tagged as music.
+ static void (*p_AAudioStreamBuilder_setUsage)(AAudioStreamBuilder *, int32_t);
+ static void (*p_AAudioStreamBuilder_setContentType)(AAudioStreamBuilder *, int32_t);
++// For the low-latency stream (see open_stream); looked up but not required.
++static void (*p_AAudioStreamBuilder_setPerformanceMode)(AAudioStreamBuilder *, int32_t);
++static int32_t (*p_AAudioStream_getPerformanceMode)(AAudioStream *);
++static int32_t (*p_AAudioStream_getSharingMode)(AAudioStream *);
++static int32_t (*p_AAudioStream_getFramesPerBurst)(AAudioStream *);
++// Underruns: the device played zeros because the buffer ran dry (a gap the player then makes up
++// for by dropping frames). Reported for the low-latency stream, whose buffer is short.
++static int32_t (*p_AAudioStream_getXRunCount)(AAudioStream *);
+ 
+ static pthread_mutex_t aaudio_mutex = PTHREAD_MUTEX_INITIALIZER;
+ static AAudioStream *stream;
+@@ -77,6 +86,9 @@ static int32_t current_encoded_output_format;
+ static int32_t rate, channels;
+ static int running;
+ static int64_t frames_written;
++static int stream_low_latency; // the stream was opened for a low-latency stream
++static int32_t xruns_reported;  // the stream's underruns already reported
++static int64_t xruns_report_time;
+ 
+ // android.c: hands the frames to the app's audio tap, when another app taps it; 1 when that app
+ // wants this device silent.
+@@ -100,11 +112,42 @@ static int load_aaudio(void) {
+   AAUDIO_FUNCTIONS(LOAD)
+   p_AAudioStreamBuilder_setUsage = dlsym(library, "AAudioStreamBuilder_setUsage");
+   p_AAudioStreamBuilder_setContentType = dlsym(library, "AAudioStreamBuilder_setContentType");
++  p_AAudioStreamBuilder_setPerformanceMode =
++      dlsym(library, "AAudioStreamBuilder_setPerformanceMode");
++  p_AAudioStream_getPerformanceMode = dlsym(library, "AAudioStream_getPerformanceMode");
++  p_AAudioStream_getSharingMode = dlsym(library, "AAudioStream_getSharingMode");
++  p_AAudioStream_getFramesPerBurst = dlsym(library, "AAudioStream_getFramesPerBurst");
++  p_AAudioStream_getXRunCount = dlsym(library, "AAudioStream_getXRunCount");
+   return 0;
+ }
+ 
++// While AirPlay 2's low-latency stream plays, its audio arrives only about 55 ms before it is
++// due, and Shairport keeps just low_latency_audio_backend_buffer_desired_length in the backend.
++// The default (legacy) path moves audio in 250 ms bursts on some devices, far too coarse for that.
++static int low_latency_wanted(void) {
++#ifdef CONFIG_AIRPLAY_2
++  return config.low_latency_output_active;
++#else
++  return 0;
++#endif
++}
++
++// The backend buffer length to aim for.
++static double desired_length(int low_latency) {
++#ifdef CONFIG_AIRPLAY_2
++  if (low_latency)
++    return config.low_latency_audio_backend_buffer_desired_length;
++#else
++  (void)low_latency;
++#endif
++  return config.audio_backend_buffer_desired_length;
++}
++
+ static void close_stream(void) {
+   if (stream != NULL) {
++    if (stream_low_latency && p_AAudioStream_getXRunCount)
++      inform("aaudio: the low-latency stream closes after %d underruns.",
++             p_AAudioStream_getXRunCount(stream));
+     p_AAudioStream_requestStop(stream);
+     p_AAudioStream_close(stream);
+     stream = NULL;
+@@ -113,7 +156,33 @@ static void close_stream(void) {
+   frames_written = 0;
+ }
+ 
++static void start_stream(void) {
++  aaudio_result_t result = p_AAudioStream_requestStart(stream);
++  if (result != AAUDIO_OK)
++    debug(1, "aaudio: could not start: %s.", result_text(result));
++  running = 1;
++}
++
++static int open_stream(void);
++
++// A low-latency stream's output is opened and started ahead of its audio, in the format of the
++// last stream: opening and starting take 100-200 ms on a phone, longer than the stream's whole
++// latency, and the sender sets up a new stream for every sound after a second of silence. A
++// started stream that gets nothing plays silence; AAudio counts no underruns for it and re-bases
++// its position at the first write, so delay() is right from then on (measured on a Pixel).
++// Called with aaudio_mutex held.
++static void open_and_start_ahead(void) {
++  if (!low_latency_wanted() || current_encoded_output_format == 0)
++    return;
++  if (stream != NULL && stream_low_latency == 1)
++    return;
++  close_stream();
++  if (open_stream() == 0)
++    start_stream();
++}
++
+ static int open_stream(void) {
++  int low_latency = low_latency_wanted();
+   AAudioStreamBuilder *builder = NULL;
+   aaudio_result_t result = p_AAudio_createStreamBuilder(&builder);
+   if (result != AAUDIO_OK) {
+@@ -126,12 +195,15 @@ static int open_stream(void) {
+   // ponytail: the whole desired length (0.5 s; up to 1 s for an audio tap, its head start). The
+   // deep buffer rides out scheduling hiccups of a root process, and delay() reports it exactly,
+   // so it costs latency budget, not sync.
++  // (A low-latency stream asks for its own, short length: see low_latency_wanted().)
+   p_AAudioStreamBuilder_setBufferCapacityInFrames(
+-      builder, (int32_t)(config.audio_backend_buffer_desired_length * rate));
++      builder, (int32_t)(desired_length(low_latency) * rate));
+   if (p_AAudioStreamBuilder_setUsage)
+     p_AAudioStreamBuilder_setUsage(builder, AAUDIO_USAGE_MEDIA);
+   if (p_AAudioStreamBuilder_setContentType)
+     p_AAudioStreamBuilder_setContentType(builder, AAUDIO_CONTENT_TYPE_MUSIC);
++  if (low_latency && p_AAudioStreamBuilder_setPerformanceMode)
++    p_AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+   result = p_AAudioStreamBuilder_openStream(builder, &stream);
+   p_AAudioStreamBuilder_delete(builder);
+   if (result != AAUDIO_OK) {
+@@ -140,9 +212,30 @@ static int open_stream(void) {
+     stream = NULL;
+     return -1;
+   }
+-  p_AAudioStream_setBufferSizeInFrames(stream, p_AAudioStream_getBufferCapacityInFrames(stream));
+-  debug(1, "aaudio: opened a %d Hz, %d channel stream with %d frames of buffer.", rate, channels,
+-        p_AAudioStream_getBufferCapacityInFrames(stream));
++  int32_t capacity = p_AAudioStream_getBufferCapacityInFrames(stream);
++  int32_t burst = p_AAudioStream_getFramesPerBurst ? p_AAudioStream_getFramesPerBurst(stream) : 0;
++  int32_t size = capacity;
++  if (low_latency && burst > 0) {
++    // whole bursts, at least two, up to the desired length
++    size = (int32_t)(desired_length(low_latency) * rate) / burst * burst;
++    if (size < 2 * burst)
++      size = 2 * burst;
++    if (size > capacity)
++      size = capacity;
++  }
++  p_AAudioStream_setBufferSizeInFrames(stream, size);
++  stream_low_latency = low_latency;
++  xruns_reported = 0;
++  xruns_report_time = 0;
++  if (low_latency)
++    inform("aaudio: opened a low-latency %d Hz, %d channel stream: buffer %d of %d frames, burst "
++           "%d, performance mode %d, sharing mode %d.",
++           rate, channels, size, capacity, burst,
++           p_AAudioStream_getPerformanceMode ? p_AAudioStream_getPerformanceMode(stream) : -1,
++           p_AAudioStream_getSharingMode ? p_AAudioStream_getSharingMode(stream) : -1);
++  else
++    debug(1, "aaudio: opened a %d Hz, %d channel stream with %d frames of buffer.", rate, channels,
++          capacity);
+   running = 0;
+   frames_written = 0;
+   return 0;
+@@ -173,7 +266,8 @@ static int32_t get_configuration(unsigned int channel_count, unsigned int sample
+ static int configure(int32_t requested_encoded_format, char **channel_map) {
+   int response = 0;
+   pthread_mutex_lock_and_cleanup_push(&aaudio_mutex);
+-  if (requested_encoded_format != current_encoded_output_format || stream == NULL) {
++  if (requested_encoded_format != current_encoded_output_format || stream == NULL ||
++      stream_low_latency != low_latency_wanted()) {
+     close_stream();
+     rate = RATE_FROM_ENCODED_FORMAT(requested_encoded_format);
+     channels = CHANNELS_FROM_ENCODED_FORMAT(requested_encoded_format);
+@@ -195,15 +289,13 @@ static int play(void *buf, int frames, __attribute__((unused)) int sample_type,
+     memset(buf, 0, (size_t)frames * channels * 2);
+   int response = 0;
+   pthread_mutex_lock_and_cleanup_push(&aaudio_mutex);
++  if (stream != NULL && stream_low_latency != low_latency_wanted())
++    close_stream(); // a low-latency stream started or ended: reopen for it
+   if (stream == NULL && current_encoded_output_format != 0)
+     open_stream(); // after a flush, or a disconnect (e.g. an output device change)
+   if (stream != NULL && frames > 0) {
+-    if (running == 0) {
+-      aaudio_result_t result = p_AAudioStream_requestStart(stream);
+-      if (result != AAUDIO_OK)
+-        debug(1, "aaudio: could not start: %s.", result_text(result));
+-      running = 1;
+-    }
++    if (running == 0)
++      start_stream();
+     aaudio_result_t written = p_AAudioStream_write(stream, buf, frames, NANOS_PER_SECOND);
+     if (written >= 0) {
+       frames_written += written;
+@@ -228,8 +320,20 @@ static int delay(long *the_delay) {
+     if (p_AAudioStream_getTimestamp(stream, CLOCK_MONOTONIC, &position, &time_ns) == AAUDIO_OK) {
+       struct timespec now;
+       clock_gettime(CLOCK_MONOTONIC, &now);
+-      int64_t elapsed = (int64_t)now.tv_sec * NANOS_PER_SECOND + now.tv_nsec - time_ns;
++      int64_t now_ns = (int64_t)now.tv_sec * NANOS_PER_SECOND + now.tv_nsec;
++      int64_t elapsed = now_ns - time_ns;
+       frames = (long)(frames_written - (position + elapsed * rate / NANOS_PER_SECOND));
++      // at most every 5 s: new underruns
++      int32_t xruns = p_AAudioStream_getXRunCount ? p_AAudioStream_getXRunCount(stream) : 0;
++      if ((xruns > xruns_reported) && (now_ns - xruns_report_time >= 5 * NANOS_PER_SECOND)) {
++        if (stream_low_latency)
++          inform("aaudio: %d underruns (%d in all) in the low-latency stream.",
++                 xruns - xruns_reported, xruns);
++        else
++          debug(2, "aaudio: %d underruns (%d in all).", xruns - xruns_reported, xruns);
++        xruns_reported = xruns;
++        xruns_report_time = now_ns;
++      }
+     } else {
+       // No timestamp yet (just started): what is still in the buffer is a lower bound.
+       frames = (long)(frames_written - p_AAudioStream_getFramesRead(stream));
+@@ -243,20 +347,35 @@ static int delay(long *the_delay) {
+ 
+ // ponytail: close instead of pause+flush, so frames_written and the timestamp position both
+ // restart at zero; reopening costs a few ms per flush (track skip, pause).
++// A play session is about to begin (player_play): see open_and_start_ahead().
++static int prepare(void) {
++  pthread_mutex_lock_and_cleanup_push(&aaudio_mutex);
++  open_and_start_ahead();
++  pthread_cleanup_pop(1);
++  return 0;
++}
++
+ static void flush(void) {
+   android_relay(NULL, 0, rate, 0); // the tap's app drops what it holds too
+   pthread_mutex_lock_and_cleanup_push(&aaudio_mutex);
+   close_stream();
++  open_and_start_ahead(); // a low-latency stream resumes without opening and starting again
+   pthread_cleanup_pop(1);
+ }
+ 
+-static void stop(void) { flush(); }
++// The end of a stream: closed, not reopened.
++static void stop(void) {
++  android_relay(NULL, 0, rate, 0);
++  pthread_mutex_lock_and_cleanup_push(&aaudio_mutex);
++  close_stream();
++  pthread_cleanup_pop(1);
++}
+ 
+ audio_output audio_aaudio = {.name = "aaudio",
+                              .help = NULL,
+                              .init = &init,
+                              .deinit = &deinit,
+-                             .prepare = NULL,
++                             .prepare = &prepare,
+                              .get_configuration = &get_configuration,
+                              .configure = &configure,
+                              .play = &play,

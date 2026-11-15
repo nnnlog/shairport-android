@@ -20,6 +20,11 @@ object Prefs {
     const val LINK_STREAM_VOLUME = "link_stream_volume"
     /** The sender's track as a media notification (NowPlaying.kt); no engine restart. */
     const val NOW_PLAYING = "now_playing"
+    /**
+     * AirPlay 2's low-latency stream (AAC-ELD over UDP, what a Mac uses for system audio): about
+     * 70-300 ms of delay instead of about 2 s. Off while an app taps the audio, which needs a lead.
+     */
+    const val LOW_LATENCY = "low_latency"
 
     /** What classic AirPlay advertises: the model choice only applies to AirPlay 2. */
     const val GENERIC_MODEL = "ShairportSync"
@@ -34,6 +39,7 @@ object Prefs {
         PLAYBACK_MODE to "stereo",
         LINK_STREAM_VOLUME to true,
         NOW_PLAYING to false,
+        LOW_LATENCY to false,
     )
 
     /** Volume on STREAM_MUSIC, not in the PCM; the audio tap's app gets it as the volume to play at. */
@@ -64,6 +70,13 @@ object Prefs {
         }
         return preferences
     }
+
+    /**
+     * Whether the engine offers the low-latency stream: it's an AirPlay 2 feature, and an audio tap
+     * needs its audio well ahead of time, which the low-latency stream doesn't have.
+     */
+    fun lowLatency(preferences: SharedPreferences, airplay2: Boolean, tapped: Boolean): Boolean =
+        airplay2 && !tapped && preferences.getBoolean(LOW_LATENCY, false)
 
     /** Root refusal must not leave AirPlay 2 claiming it is enabled. */
     fun disableRootFeatures(preferences: SharedPreferences) {

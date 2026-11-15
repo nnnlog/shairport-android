@@ -15,6 +15,7 @@
     {"key": "airplay_2", "type": "boolean", "title": "AirPlay 2", "default": false, "description": "Multiroom, buffered audio (Needs root: Magisk may ask on this device. Off: classic AirPlay.)"},
     {"key": "server_name", "type": "string", "title": "Name", "default": "", "description": "Name shown in the AirPlay list. Empty: the Android device name."},
     {"key": "model", "type": "select", "title": "Model", "default": "Generic", "options": ["Generic", "HomePod", "HomePod mini"], "description": "Advertised model: the icon senders show. AirPlay 2 only; classic AirPlay is Generic. HomePod models can't be added to the Home app."},
+    {"key": "low_latency", "type": "boolean", "title": "Low latency", "default": false, "description": "AirPlay 2's low-latency stream, which a Mac uses for its system audio: about 70-300 ms of delay instead of about 2 s. Lossy. AirPlay 2 only; off while an app taps the audio."},
     {"key": "playback_mode", "type": "select", "title": "Playback mode", "default": "Stereo", "options": ["Stereo", "Mono"]},
     {"key": "link_stream_volume", "type": "boolean", "title": "Link Android music volume", "default": true, "description": "AirPlay volume also sets Android's music volume. With AirPlay 2, changing it here changes the sender's too."},
     {"key": "now_playing", "type": "boolean", "title": "Now playing notification", "default": false, "description": "The track, its artwork and progress in a notification, also on the lock screen. Its controls work with AirPlay 2."},

@@ -12,6 +12,7 @@ Build and install `app-release.apk` (see [Build](#build)) and open Shairport:
 - **AirPlay 2** needs root for NQPTP; without root the switch stays off and the receiver stays classic AirPlay. Grant root through **Root access**: with it the receiver also keeps Wi-Fi awake while it runs; without it, classic AirPlay and linked volume still work.
 - **Start at boot**, no root needed. With a secure lock screen it starts after the first unlock.
 - **Name** (default: the device name), **Model** (the icon senders show, AirPlay 2 only) and **Playback mode** (stereo or mono).
+- **Low latency** (off by default, AirPlay 2 only): offers AirPlay 2's low-latency stream, which a Mac uses for its system audio — about 70–300 ms of delay instead of about 2 s, lossy (AAC-ELD), played through a low-latency AAudio stream. Senders that don't use it, and the Music app's buffered audio, play as before. Off while an app taps the audio.
 - **Link Android music volume** (default on): AirPlay moves Android's music volume; with an AirPlay 2 sender it works both ways — Android's volume keys move the sender's slider. Off: that volume stays fixed and AirPlay volume applies only to this receiver's audio.
 - **Now playing notification** (off by default): the track, artwork and progress in a media notification (lock screen and media controls included); with AirPlay 2 also previous, play/pause and next, reached by media buttons too.
 - **Status** shows each part: engine and mode, NQPTP, the mDNS advertisement, playback, and which app taps the audio.
@@ -21,14 +22,14 @@ Build and install `app-release.apk` (see [Build](#build)) and open Shairport:
 One key/value pair per call, stored where the settings screen stores them. Protected by `android.permission.DUMP`; unknown keys, wrong types and out-of-list values are rejected. A running receiver applies changes at once (restarting the engine when the configuration changed), otherwise they apply the next time it starts.
 
 ```sh
-# Keys: receiver_enabled, airplay_2, server_name, model, playback_mode, link_stream_volume,
-# now_playing, start_at_boot. Booleans: --ez value false. List settings take their value or its
+# Keys: receiver_enabled, airplay_2, server_name, model, low_latency, playback_mode,
+# link_stream_volume, now_playing, start_at_boot. Booleans: --ez value false. List settings take their value or its
 # label ("HomePod mini"). A value with spaces needs a second level of quotes.
 adb shell am broadcast --include-stopped-packages -n com.hkfuertes.shairport/.SettingsReceiver \
   -a com.hkfuertes.shairport.CONFIGURE_SETTINGS --es key server_name --es value "'Kitchen speaker'"
 ```
 
-Same receiver, other actions: `LIST_SETTINGS` (every key, type, current value, default and choices, as JSON) and `GET_STATUS` (the state as one URL-encoded line: `state`, `mode`, `source`, `title`, `artist`, `album`, `address`, `volume` and every setting's value). Turning the receiver on over adb takes effect the next time it starts: from the app, or [headless](#headless-setup).
+Same receiver, other actions: `LIST_SETTINGS` (every key, type, current value, default and choices, as JSON) and `GET_STATUS` (the state as one URL-encoded line: `state`, `mode`, `source`, `title`, `artist`, `album`, `address`, `volume`, `low_latency_active` and every setting's value). Turning the receiver on over adb takes effect the next time it starts: from the app, or [headless](#headless-setup).
 
 ## Headless setup
 

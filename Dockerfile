@@ -9,6 +9,8 @@
 # Stages: ndk -> deps -> engine (+ engine-src) -> apk (Shairport), and sdk -> plugin.
 
 ARG DEBIAN=debian:bookworm@sha256:f37a335e82bca302e955fa39f9dfe28f1be618f016f8a2b56318e5a5111afc26
+# The Android ABIs to build the engine for. `make ABIS=arm64-v8a` builds one, for a faster loop.
+ARG ABIS="arm64-v8a armeabi-v7a"
 
 FROM ${DEBIAN} AS ndk
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,8 +40,8 @@ get ffmpeg.tar.gz https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n8.1.2.tar.
 get util-linux.tar.xz https://www.kernel.org/pub/linux/utils/util-linux/v2.40/util-linux-2.40.4.tar.xz 5c1daf733b04e9859afdc3bd87cc481180ee0f88b5c0946b16fdec931975fb79
 EOF
 COPY native/build-deps.sh /usr/local/bin/
-RUN build-deps.sh arm64-v8a
-RUN build-deps.sh armeabi-v7a
+ARG ABIS
+RUN for abi in $ABIS; do build-deps.sh "$abi" || exit 1; done
 
 # Shairport Sync and NQPTP sources: pinned upstream commits plus our patches.
 FROM ndk AS engine-src
@@ -68,7 +70,8 @@ COPY --from=engine-src /src /
 FROM deps AS engine
 COPY --from=engine-src /src /src
 COPY native/build-engine.sh /usr/local/bin/
-RUN build-engine.sh arm64-v8a && build-engine.sh armeabi-v7a
+ARG ABIS
+RUN for abi in $ABIS; do build-engine.sh "$abi" || exit 1; done
 
 FROM scratch AS jnilibs
 COPY --from=engine /out /
@@ -78,7 +81,8 @@ FROM engine AS aaudio-check-build
 COPY tests/aaudio /tests
 RUN mkdir /tmp/check \
     && cp /src/shairport-sync/audio_aaudio.c /src/shairport-sync/audio.h /tests/common.h /tmp/check/ \
-    && aarch64-linux-android25-clang -O1 -Wall -Wextra -I/tmp/check -I/opt/deps/arm64-v8a/include \
+    && aarch64-linux-android25-clang -O1 -Wall -Wextra -DCONFIG_AIRPLAY_2 -I/tmp/check \
+         -I/opt/deps/arm64-v8a/include \
          -o /aaudio-check /tests/check.c -ldl
 
 FROM scratch AS aaudio-check
@@ -137,3 +141,7 @@ COPY --from=plugin /plugin/dist/*.zip /plugin/dist/*.zip.sha256 /plugin/dist/kio
 FROM scratch AS out
 COPY --from=apk /work/app/build/outputs/apk/release/app-release.apk /
 COPY --from=plugin-out / /kiosk-plugin/
+
+# make apk: the APK only, without the Kiosk Satellite plugin.
+FROM scratch AS apk-out
+COPY --from=apk /work/app/build/outputs/apk/release/app-release.apk /

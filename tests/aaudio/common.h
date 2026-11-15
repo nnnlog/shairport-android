@@ -23,11 +23,14 @@ typedef enum { SPS_RATE_UNKNOWN = 0, SPS_RATE_44100 = 7, SPS_RATE_48000 = 8 } sp
 typedef struct {
   double audio_backend_buffer_desired_length;
   double audio_backend_latency_offset;
+  int low_latency_output_active; // patch 0012; read only in AirPlay 2 builds
+  double low_latency_audio_backend_buffer_desired_length; // patch 0012, likewise
 } shairport_cfg;
 extern shairport_cfg config;
 
 #define debug(level, ...) (printf("debug: " __VA_ARGS__), printf("\n"))
 #define warn(...) (printf("warn: " __VA_ARGS__), printf("\n"))
+#define inform(...) (printf("inform: " __VA_ARGS__), printf("\n"))
 
 void mutex_unlock(void *arg);
 #define pthread_mutex_lock_and_cleanup_push(mu)                                                    \
