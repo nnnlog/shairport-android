@@ -6,37 +6,20 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.preference.Preference
 import android.preference.PreferenceCategory
 import android.preference.SwitchPreference
-import android.widget.Toast
-import java.util.concurrent.TimeUnit
 
 @Suppress("DEPRECATION") // Classic XML preferences are deliberate for this background app.
 class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     private lateinit var preferences: SharedPreferences
-    private lateinit var rootPreference: Preference
     private lateinit var statusCategory: PreferenceCategory
     private val statusListener: () -> Unit = { runOnUiThread(::refreshStatus) }
-    private enum class Root { GRANTED, DENIED, MISSING }
-    private var rootCheckRunning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         preferences = Prefs.get(this) // stores defaults (device name, ...) before the screen reads them
         addPreferencesFromResource(R.xml.preferences)
         preferences.registerOnSharedPreferenceChangeListener(this)
-        rootPreference = findPreference(PREF_ROOT_ACCESS)
-        rootPreference.setOnPreferenceClickListener {
-            checkRoot()
-            true
-        }
-        // AirPlay 2 turns on only after su is granted (Magisk may prompt).
-        findPreference(Prefs.AIRPLAY_2).setOnPreferenceChangeListener { preference, value ->
-            if (value != true) return@setOnPreferenceChangeListener true
-            checkRoot { (preference as SwitchPreference).isChecked = true }
-            false
-        }
         // Started from the tap itself: Android forbids foreground services started from the
         // background, which a preference listener may be (e.g. adb changes it while we're paused).
         findPreference(Prefs.RECEIVER_ENABLED).setOnPreferenceChangeListener { _, value ->
@@ -55,8 +38,8 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
         super.onResume()
         EngineStatus.addListener(statusListener)
         AudioTapService.addListener(statusListener)
+        refreshAirPlay2()
         refreshStatus()
-        checkRoot() // also re-check permission after returning from Magisk
     }
 
     override fun onPause() {
@@ -136,36 +119,14 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
         }
     }
 
-    /** Asks for su (Magisk prompts if it has no saved answer); [onGranted] runs if granted. */
-    private fun checkRoot(onGranted: (() -> Unit)? = null) {
-        if (rootCheckRunning) return
-        rootCheckRunning = true
-        findPreference(Prefs.AIRPLAY_2).isEnabled = false
-        rootPreference.isEnabled = false
-        rootPreference.setSummary(R.string.root_access_checking)
-        Thread({
-            val root = rootStatus()
-            runOnUiThread { applyRootResult(root, onGranted) }
-        }, "root-check").start()
-    }
-
-    private fun applyRootResult(root: Root, onGranted: (() -> Unit)?) {
-        if (isFinishing || isDestroyed) return
-        rootCheckRunning = false
-        findPreference(Prefs.AIRPLAY_2).isEnabled = root == Root.GRANTED
-        rootPreference.isEnabled = root != Root.GRANTED // nothing left to request once granted
-        rootPreference.setSummary(
-            when (root) {
-                Root.GRANTED -> R.string.root_access_granted
-                Root.DENIED -> R.string.root_access_denied
-                Root.MISSING -> R.string.root_access_missing
-            },
-        )
-        if (root == Root.GRANTED) onGranted?.invoke()
-        else {
-            Prefs.disableRootFeatures(preferences)
-            if (onGranted != null) Toast.makeText(this, R.string.root_required, Toast.LENGTH_LONG).show()
+    /** AirPlay 2 needs PTP's ports (Nqptp.kt): where apps can't have them it stays off, and says why. */
+    private fun refreshAirPlay2() {
+        val open = Nqptp.portsOpen
+        findPreference(Prefs.AIRPLAY_2).apply {
+            isEnabled = open
+            setSummary(if (open) R.string.airplay_2_summary else R.string.airplay_2_ports_closed)
         }
+        if (!open) Prefs.disableAirPlay2(preferences)
     }
 
     /**
@@ -210,33 +171,7 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
         }
     }
 
-    /**
-     * `su` itself makes Magisk show its grant prompt, but only while Magisk has no saved answer:
-     * a saved "deny" (also left by a prompt that timed out) is applied silently, no prompt.
-     */
-    private fun rootStatus(): Root {
-        var process: Process? = null
-        return try {
-            process = ProcessBuilder("su", "-c", "id")
-                .redirectErrorStream(true)
-                .start()
-            if (!process.waitFor(ROOT_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) return Root.DENIED
-            process.inputStream.bufferedReader().use { output ->
-                if (process.exitValue() == 0 && output.readText().contains("uid=0")) Root.GRANTED
-                else Root.DENIED
-            }
-        } catch (_: java.io.IOException) {
-            Root.MISSING // no su binary at all
-        } catch (_: Exception) {
-            Root.DENIED
-        } finally {
-            process?.destroy()
-        }
-    }
-
     companion object {
-        private const val PREF_ROOT_ACCESS = "root_access"
         private const val PREF_STATUS = "status"
-        private const val ROOT_CHECK_TIMEOUT_SECONDS = 30L
     }
 }

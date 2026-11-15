@@ -1,6 +1,6 @@
-NQPTP 1.2.9 creates a client's shared memory interface on its first control message. The app's root
-script calls NQPTP up once the default one exists (RootScript.kt), which 1.2.8 created at start: on
-Android, create it at start again.
+NQPTP 1.2.9 creates a client's shared memory interface on its first control message. The app calls
+NQPTP up once the default one exists (ReceiverService.kt), which 1.2.8 created at start: on Android,
+create it at start again. It comes after the PTP ports are bound, so it also says NQPTP holds them.
 
 diff --git a/nqptp.c b/nqptp.c
 index 7a41cbe..fbded29 100644
@@ -11,8 +11,8 @@ index 7a41cbe..fbded29 100644
    char buf[BUFLEN];
  
 +#ifdef __ANDROID__
-+  // The app's root script calls NQPTP up once this region exists (RootScript.kt), as with 1.2.8:
-+  // create the default client's now, not on Shairport's first message.
++  // The app calls NQPTP up once this region exists (ReceiverService.kt), as with 1.2.8, and the
++  // PTP ports are bound by now: create the default client's here, not on Shairport's first message.
 +  get_client_id((char *)NQPTP_INTERFACE_NAME);
 +#endif
 +

@@ -8,7 +8,6 @@
             android:summary="@string/receiver_enabled_summary"
             android:title="@string/receiver_enabled_title" />
         <SwitchPreference
-            android:enabled="false"
             android:key="airplay_2"
             android:summary="@string/airplay_2_summary"
             android:title="@string/airplay_2_title" />
@@ -49,16 +48,6 @@
             android:key="now_playing"
             android:summary="@string/now_playing_summary"
             android:title="@string/now_playing_title" />
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        android:order="4"
-        android:title="@string/permissions_category">
-        <Preference
-            android:key="root_access"
-            android:persistent="false"
-            android:summary="@string/root_access_checking"
-            android:title="@string/root_access_title" />
     </PreferenceCategory>
 
     <!-- Live state of each part (MainActivity, from EngineStatus): read-only, shown disabled. -->

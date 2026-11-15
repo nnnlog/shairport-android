@@ -1,17 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Shairport</string>
-    <string name="root_access_title">Root access</string>
-    <string name="root_access_checking">Requesting Magisk root access…</string>
-    <string name="root_access_granted">Needed for NQPTP (AirPlay 2) and keeping Wi-Fi awake.</string>
-    <string name="root_access_denied">Denied by Magisk. Allow Shairport in Magisk > Superuser, then tap here.</string>
-    <string name="root_access_missing">No su binary found: AirPlay 2 and Wi-Fi protection need a rooted device (Magisk).</string>
-    <string name="root_required">This option needs root access (Magisk).</string>
     <string name="receiver_category">Receiver</string>
     <string name="receiver_enabled_title">AirPlay receiver</string>
     <string name="receiver_enabled_summary">Starts and stops Shairport Sync and its advertisement.</string>
     <string name="airplay_2_title">AirPlay 2</string>
-    <string name="airplay_2_summary">Multiroom, buffered audio (requires root).</string>
+    <string name="airplay_2_summary">Multiroom, buffered audio.</string>
+    <string name="airplay_2_ports_closed">Unavailable: this device doesn\'t let apps use UDP ports 319 and 320, which AirPlay 2\'s timing (NQPTP) needs.</string>
     <string name="start_at_boot_title">Start at boot</string>
     <string name="start_at_boot_summary">Starts the receiver after every reboot.</string>
     <string name="notification_stop">Stop</string>
@@ -34,7 +29,6 @@
     <string name="status_tap_off">Off</string>
     <string name="status_tap">Shared with %1$s</string>
     <string name="status_tap_silent">Shared with %1$s; this device is silent</string>
-    <string name="permissions_category">Permissions</string>
     <string name="configuration_category">Shairport configuration</string>
     <string name="server_name_title">Advertised name</string>
     <string name="server_name_summary">Name visible to AirPlay senders.</string>

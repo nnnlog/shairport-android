@@ -39,6 +39,7 @@ android {
 
     packaging {
         jniLibs {
+            // Extracted on install: ReceiverService runs libnqptp.so (an executable) from there.
             useLegacyPackaging true
         }
     }

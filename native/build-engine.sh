@@ -1,5 +1,5 @@
 #!/bin/sh
-# Shairport Sync (a JNI library) and NQPTP (an executable run through su) for one Android ABI,
+# Shairport Sync (a JNI library) and NQPTP (an executable the app runs) for one Android ABI,
 # as the APK's jniLibs (/out/<ABI>/lib*.so).
 # Runs inside the Dockerfile: patched sources in /src, deps in /opt/deps. Usage: build-engine.sh ABI
 set -eu

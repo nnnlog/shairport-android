@@ -71,7 +71,7 @@ public final class ShairportPluginTest {
         assert assertions = true;
         if (!assertions) throw new AssertionError("run with java -ea");
         statusBecomesEntitiesAndForm();
-        rootRefusalRevertsTheForm();
+        refusedAirPlay2RevertsTheForm();
         formEditsReachTheApp();
         queuedEditsWinOverAnOlderStatus();
         switchStartsAnEnabledReceiverThatIsDown();
@@ -102,7 +102,7 @@ public final class ShairportPluginTest {
         assert host.saved == null : "unchanged settings are not saved again";
     }
 
-    static void rootRefusalRevertsTheForm() {
+    static void refusedAirPlay2RevertsTheForm() {
         Host host = new Host();
         ShairportPlugin plugin = new ShairportPlugin();
         Map<String, Object> settings = form(true, "Kitchen", "HomePod mini");
@@ -113,10 +113,10 @@ public final class ShairportPluginTest {
         assert host.saved == null : "unchanged settings are not saved again";
 
         plugin.poll();
-        host.answer(status.replace("airplay_2=true", "airplay_2=false")); // root refused
+        host.answer(status.replace("airplay_2=true", "airplay_2=false")); // NQPTP can't run on the device
         assert Boolean.FALSE.equals(host.saved.get("airplay_2")) : host.saved;
         assert Boolean.TRUE.equals(host.saved.get("link_stream_volume")) : host.saved;
-        assert host.pending.isEmpty() : "root refusal must not retry or disable unrelated settings";
+        assert host.pending.isEmpty() : "the app's refusal must not retry or disable unrelated settings";
     }
 
     static void formEditsReachTheApp() {

@@ -62,7 +62,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- Startable by adb/Shizuku (DUMP) without root: am start-foreground-service.
+        <!-- Startable by adb/Shizuku (DUMP): am start-foreground-service.
              connectedDevice, not mediaPlayback: only that can start from BOOT_COMPLETED. -->
         <service
             android:name=".ReceiverService"

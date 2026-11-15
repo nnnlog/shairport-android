@@ -19,6 +19,6 @@ The Dockerfile's `engine-src` stage applies each directory's patches, in file-na
 ## nqptp
 
 - `0001`–`0002`: Bionic library discovery and shared-memory compatibility, including `NQPTP_SHM_DIRECTORY` for Android app storage.
-- `0003`: the default shared-memory interface is created at start, as up to 1.2.8: 1.2.9 waits for Shairport's first message, and the app's root script waits for the file.
+- `0003`: the default shared-memory interface is created at start, as up to 1.2.8: 1.2.9 waits for Shairport's first message, and the app waits for the file, which NQPTP creates once it holds the PTP ports, before starting Shairport.
 
 Never copy code from `echo-airplay2`: its licence forbids commercial use.

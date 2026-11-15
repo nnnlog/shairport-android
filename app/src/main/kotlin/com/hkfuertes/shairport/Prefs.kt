@@ -10,7 +10,7 @@ import android.provider.Settings
 @Suppress("DEPRECATION") // framework PreferenceManager, like the classic settings screen
 object Prefs {
     const val RECEIVER_ENABLED = "receiver_enabled"
-    /** AirPlay 2 (multi-room) needs NQPTP, which needs root; off means classic AirPlay. */
+    /** AirPlay 2 (multi-room) needs NQPTP, which needs PTP's UDP ports (Nqptp.kt); off means classic AirPlay. */
     const val AIRPLAY_2 = "airplay_2"
     const val SERVER_NAME = "server_name"
     const val MODEL = "model"
@@ -78,8 +78,8 @@ object Prefs {
     fun lowLatency(preferences: SharedPreferences, airplay2: Boolean, tapped: Boolean): Boolean =
         airplay2 && !tapped && preferences.getBoolean(LOW_LATENCY, false)
 
-    /** Root refusal must not leave AirPlay 2 claiming it is enabled. */
-    fun disableRootFeatures(preferences: SharedPreferences) {
+    /** An NQPTP that can't run here must not leave AirPlay 2 claiming it is enabled. */
+    fun disableAirPlay2(preferences: SharedPreferences) {
         preferences.edit().putBoolean(AIRPLAY_2, false).commit()
     }
 
