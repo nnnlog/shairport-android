@@ -39,7 +39,7 @@ object Prefs {
         PLAYBACK_MODE to "stereo",
         LINK_STREAM_VOLUME to true,
         NOW_PLAYING to false,
-        LOW_LATENCY to false,
+        LOW_LATENCY to true,
     )
 
     /** Volume on STREAM_MUSIC, not in the PCM; the audio tap's app gets it as the volume to play at. */
@@ -76,7 +76,7 @@ object Prefs {
      * needs its audio well ahead of time, which the low-latency stream doesn't have.
      */
     fun lowLatency(preferences: SharedPreferences, airplay2: Boolean, tapped: Boolean): Boolean =
-        airplay2 && !tapped && preferences.getBoolean(LOW_LATENCY, false)
+        airplay2 && !tapped && preferences.getBoolean(LOW_LATENCY, true)
 
     /** An NQPTP that can't run here must not leave AirPlay 2 claiming it is enabled. */
     fun disableAirPlay2(preferences: SharedPreferences) {

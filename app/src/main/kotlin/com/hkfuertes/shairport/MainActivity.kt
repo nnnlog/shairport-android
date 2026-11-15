@@ -109,7 +109,7 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
                 refreshStatus()
             }
             Prefs.LOW_LATENCY -> {
-                (findPreference(key) as SwitchPreference).isChecked = sharedPreferences.getBoolean(key, false)
+                (findPreference(key) as SwitchPreference).isChecked = sharedPreferences.getBoolean(key, true)
                 refreshLowLatency()
             }
             Prefs.MODEL -> refreshModel()
@@ -154,7 +154,7 @@ class MainActivity : PreferenceActivity(), SharedPreferences.OnSharedPreferenceC
             summary = getString(
                 when {
                     !airplay2 -> R.string.low_latency_airplay2_summary
-                    AudioTapService.tap != null && preferences.getBoolean(Prefs.LOW_LATENCY, false) ->
+                    AudioTapService.tap != null && preferences.getBoolean(Prefs.LOW_LATENCY, true) ->
                         R.string.low_latency_tap_summary
                     else -> R.string.low_latency_summary
                 },
